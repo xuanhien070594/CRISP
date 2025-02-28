@@ -1,0 +1,17 @@
+# -*- mode: python -*-
+# vi: set ft=python :
+package(default_visibility = ["//visibility:public"])
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+
+cc_library(
+    name = "CRISP",
+    srcs = ["src/cppad_core/CppAdInterface.cpp"],
+    hdrs = glob(["include/**/*.h"]),
+    includes = ["include"],
+    deps = [
+        "@drake//:drake_shared_library"
+    ],
+    linkopts = ["-ldl"],
+    visibility = ["//visibility:public"],
+)

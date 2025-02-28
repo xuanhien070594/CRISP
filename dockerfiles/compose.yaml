@@ -1,0 +1,30 @@
+services:
+  crisp_dev:
+    init: true
+    image: xuanhien070594/base_dev:latest
+    container_name: crisp_dev
+    stop_signal: SIGINT
+    command: ["sleep", "infinity"]
+    privileged: true
+    network_mode: host
+    ipc: host
+    pid: host
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - ~/git:/home/roboticist/git
+    environment:
+      - DISPLAY=${DISPLAY}
+    cap_add:
+      - SYS_NICE
+      - SYS_PTRACE
+    ulimits:
+      rtprio: 99
+      rttime: -1 # corresponds to 'unlimited'
+      memlock: 8428281856
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

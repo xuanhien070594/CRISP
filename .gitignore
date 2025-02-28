@@ -1,0 +1,5 @@
+.idea/
+.clwb/
+bazel-*
+MODULE.bazel
+MODULE.bazel.lock

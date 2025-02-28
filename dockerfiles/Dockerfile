@@ -1,0 +1,48 @@
+FROM ubuntu:jammy
+
+###### Core Linux tools #####
+RUN apt-get update && apt-get install -y --no-install-recommends\
+    apt-utils net-tools lsb-release sudo zip unzip wget less ssh vim curl\
+    software-properties-common python3-dev python3-pip clang-15 clang-format-15 \
+    rsync pkg-config zlib1g-dev ca-certificates gnupg g++ git\
+    && rm -rf /var/lib/apt/lists/*
+RUN set -eux \
+  && apt-get update && apt-get install --no-install-recommends  locales \
+  && locale-gen en_US.UTF-8
+RUN if type sudo 2>/dev/null; then \
+     echo "The sudo command already exists... Skipping."; \
+    else \
+     echo -e "#!/bin/sh\n\${@}" > /usr/sbin/sudo; \
+     chmod +x /usr/sbin/sudo; \
+    fi
+
+# User and permissions
+ARG user=roboticist
+ARG group=roboticist
+ARG uid=1000
+ARG gid=1000
+ARG home=/home/${user}
+RUN mkdir -p /etc/sudoers.d \
+    && groupadd -g ${gid} ${group} \
+    && useradd -d ${home} -u ${uid} -g ${gid} -m -s /bin/bash ${user} \
+    && echo "${user} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/sudoers_${user}
+USER ${user}
+RUN sudo usermod -a -G video ${user}
+WORKDIR ${home}
+
+RUN git clone --depth 1 --branch v1.35.0 https://github.com/RobotLocomotion/drake.git
+RUN set -eux && export  \
+    && yes | sudo DEBIAN_FRONTEND=noninteractive drake/setup/ubuntu/install_prereqs.sh \
+    && sudo rm -rf /var/lib/apt/lists/* \
+    && sudo rm -rf drake
+
+# install bazel
+RUN wget https://github.com/bazelbuild/bazelisk/releases/download/v1.25.0/bazelisk-linux-amd64
+RUN sudo chmod +x bazelisk-linux-amd64 \
+    && sudo cp bazelisk-linux-amd64 /usr/local/bin/bazelisk \
+    && sudo ln -s /usr/local/bin/bazelisk /usr/local/bin/bazel
+
+RUN echo "export PATH=$PATH:${home}/git/gurobi1003/linux64/bin" >> ${home}/.bashrc
+RUN echo "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${home}/git/gurobi1003/linux64/lib" >> ${home}/.bashrc
+RUN echo "export GUROBI_HOME=${home}/git/gurobi1003/linux64/" >> ${home}/.bashrc
+RUN echo "export GRB_LICENSE_FILE=${home}/gurobi.lic" >> ${home}/.bashrc
