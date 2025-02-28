@@ -3,14 +3,14 @@
 package(default_visibility = ["//visibility:public"])
 load("@rules_cc//cc:defs.bzl", "cc_library")
 
-
 cc_library(
     name = "CRISP",
     srcs = ["src/cppad_core/CppAdInterface.cpp"],
     hdrs = glob(["include/**/*.h"]),
     includes = ["include"],
     deps = [
-        "@drake//:drake_shared_library"
+        "@drake//:drake_shared_library",
+        "@cppad//:cppad"
     ],
     linkopts = ["-ldl"],
     visibility = ["//visibility:public"],

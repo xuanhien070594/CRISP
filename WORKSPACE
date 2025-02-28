@@ -27,6 +27,22 @@ load("@drake//tools/workspace:default.bzl", "add_default_workspace")
 
 add_default_workspace()
 
-#load("@rules_python//python:repositories.bzl", "py_repositories")
+new_local_repository(
+    name = "cppad",
+    path = "/usr/local",  # Path where CppAD is installed
+    build_file_content = """
+    cc_library(
+        name = "cppad",
+        hdrs = glob(["include/cppad/**/*.hpp"]),
+        includes = ["include"],
+        visibility = ["//visibility:public"],
+    )
 
-#py_repositories()
+    cc_library(
+        name = "cppad_lib",
+        srcs = ["lib/libcppad_lib.so"],  # Use .so if it's shared
+        includes = ["include"],
+        visibility = ["//visibility:public"],
+    )
+    """,
+)
