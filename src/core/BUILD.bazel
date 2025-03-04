@@ -2,6 +2,15 @@
 # vi: set ft=python :
 package(default_visibility = ["//visibility:public"])
 load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@drake//tools/install:install.bzl", "install")
+load(
+    "@drake//tools/skylark:pybind.bzl",
+    "drake_pybind_library",
+    "get_drake_py_installs",
+    "get_pybind_package_info",
+    "pybind_py_library",
+)
+load("@rules_python//python:packaging.bzl", "py_package")
 
 cc_library(
     name = "CRISP",
@@ -12,6 +21,13 @@ cc_library(
         "@drake//:drake_shared_library",
         "@cppad//:cppad"
     ],
-    linkopts = ["-ldl"],
+    linkopts = ["-ldl", "-lboost_filesystem", "-lboost_system"],
     visibility = ["//visibility:public"],
+)
+
+pybind_py_library(
+    name = "pyCRISP",
+    cc_so_name = "pyCRISP",
+    cc_srcs = ["python/pybindSolver.cpp"],
+    cc_deps = ["//src/core:CRISP"]
 )
