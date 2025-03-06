@@ -1,0 +1,17 @@
+services:
+  crisp_dev:
+    init: true
+    image: xuanhien070594/base_dev:latest
+    container_name: crisp_dev
+    platform: linux/amd64
+    stop_signal: SIGINT
+    command: ["sleep", "infinity"]
+    privileged: true
+    network_mode: host
+    ipc: host
+    pid: host
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - ${HOME}/git:/home/roboticist/git
+    environment:
+      - DISPLAY=host.docker.internal:0
