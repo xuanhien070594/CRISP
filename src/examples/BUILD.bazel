@@ -1,0 +1,6 @@
+cc_binary(
+    name = "SolvePushbox",
+    srcs = ["pushbox/SolvePushbox.cpp"],
+    deps = ["//src/core:CRISP"],
+    visibility = ["//visibility:public"],
+)
