@@ -1,0 +1,33 @@
+# Dockerfile to build a CRISP development environment based on xuanhien070594/base_dev:latest
+# The list of dependencies can be found at https://github.com/xuanhien070594/CRISP
+
+FROM xuanhien070594/base_dev:latest AS base
+
+WORKDIR /home/roboticist
+
+RUN git clone https://github.com/coin-or/CppAD.git \
+    && cd CppAD \
+    && mkdir build && cd build \
+    && cmake .. \
+    && sudo make install \
+    && cd /home/roboticist
+
+RUN git clone https://github.com/joaoleal/CppADCodeGen.git \
+    && cd CppADCodeGen \
+    && mkdir build \
+    && cd build \
+    && cmake .. \
+    && sudo make install \
+    && cd /home/roboticist
+
+RUN git clone https://github.com/PREDICT-EPFL/piqp.git \
+    && cd piqp \
+    && mkdir build \
+    && cd build \
+    && cmake .. -DCMAKE_CXX_FLAGS="-march=native" -DBUILD_TESTS=OFF -DBUILD_BENCHMARKS=OFF \
+    && cmake --build . --config Release \
+    && sudo cmake --install . --config Release
+
+RUN sudo apt-get update && sudo apt-get install -y --no-install-recommends\
+    libboost-all-dev libyaml-cpp-dev\
+    && sudo rm -rf /var/lib/apt/lists/*

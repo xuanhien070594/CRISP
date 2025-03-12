@@ -4,11 +4,11 @@ services:
     image: xuanhien070594/base_dev:latest
     container_name: crisp_dev
     stop_signal: SIGINT
-    command: ["sleep", "infinity"]
+    command: ["bash", "-c", "sudo service ssh start && sleep infinity"]
     privileged: true
-    network_mode: host
-    ipc: host
-    pid: host
+    network_mode: bridge
+    ports:
+      - "127.0.0.1:2222:22"
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix
       - ~/git:/home/roboticist/git

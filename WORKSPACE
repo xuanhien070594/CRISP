@@ -31,18 +31,18 @@ new_local_repository(
     name = "cppad",
     path = "/usr/local",  # Path where CppAD is installed
     build_file_content = """
-    cc_library(
-        name = "cppad",
-        hdrs = glob(["include/cppad/**/*.hpp"]),
-        includes = ["include"],
-        visibility = ["//visibility:public"],
-    )
+cc_library(
+    name = "cppad",
+    hdrs = glob(["include/cppad/**/*.hpp"]),
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+)
 
-    cc_library(
-        name = "cppad_lib",
-        srcs = ["lib/libcppad_lib.so"],  # Use .so if it's shared
-        includes = ["include"],
-        visibility = ["//visibility:public"],
-    )
-    """,
+cc_library(
+    name = "cppad_lib",
+    srcs = ["lib/libcppad_lib.so"],  # Use .so if it's shared
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+)
+""",
 )
