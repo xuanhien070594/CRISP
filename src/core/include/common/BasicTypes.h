@@ -61,6 +61,9 @@ struct CSRSparseMatrix {
     }
 };
 
+// Non-AD functions
+using function_t = std::function<void(const vector_t&, vector_t&)>;
+using function_with_param_t = std::function<void(const vector_t&, const vector_t&, vector_t&)>;
 
 
 // AD vector types (can use std::vector or Eigen containers)

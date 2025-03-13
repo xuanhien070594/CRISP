@@ -44,19 +44,19 @@ int main() {
     std::cout << "Objective value: " << objValue << std::endl;
     sparse_matrix_t objGradient = problem.evaluateObjectiveGradient(xInitial);
     std::cout << "Objective Gradient: " << std::endl;
-    printSparseMatrix(objGradient);
+    // printSparseMatrix(objGradient);
     triplet_vector_t objHessianTriplet = problem.evaluateObjectiveHessianTriplet(xInitial);
     std::cout<<"Objective Hessian Triplet: "<<std::endl;
-    printTripletVector(objHessianTriplet);
+    // printTripletVector(objHessianTriplet);
 
     vector_t eqValues = problem.evaluateEqualityConstraints(xInitial);
     std::cout << "Equality constraint values: " << eqValues.transpose() << std::endl;
     sparse_matrix_t eqGradient = problem.evaluateEqualityConstraintsJacobian(xInitial);
     std::cout << "Equality constraint gradient: " << std::endl;
-    printSparseMatrix(eqGradient);
+    // printSparseMatrix(eqGradient);
     sparse_matrix_t ineqGradient = problem.evaluateInequalityConstraintsJacobian(xInitial);
     std::cout << "Inequality constraint gradient: " << std::endl;
-    printSparseMatrix(ineqGradient);
+    // printSparseMatrix(ineqGradient);
 
     // -------------------- initialize the solver interface with the problem ------------------------ // 
     // Prepare solver parameters

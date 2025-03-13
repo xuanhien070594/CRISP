@@ -1,7 +1,7 @@
 # -*- mode: python -*-
 # vi: set ft=python :
 package(default_visibility = ["//visibility:public"])
-load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_binary")
 load("@drake//tools/install:install.bzl", "install")
 load(
     "@drake//tools/skylark:pybind.bzl",
@@ -30,4 +30,33 @@ pybind_py_library(
     cc_so_name = "pyCRISP",
     cc_srcs = ["python/pybindSolver.cpp"],
     cc_deps = ["//src/core:CRISP"]
+)
+
+# Build targets for testing
+cc_binary(
+    name = "test_cppad_interface",
+    srcs = ["tests/test_cppad_interface.cpp"],
+    deps = [":CRISP"],
+    visibility = ["//visibility:public"],
+)
+
+cc_binary(
+    name = "test_optimizationProblem",
+    srcs = ["tests/test_optimizationProblem.cpp"],
+    deps = [":CRISP"],
+    visibility = ["//visibility:public"],
+)
+
+cc_binary(
+    name = "test_optimizationProblemWithDrake",
+    srcs = ["tests/test_optimizationProblemWithDrake.cpp"],
+    deps = [":CRISP"],
+    visibility = ["//visibility:public"]
+)
+
+cc_binary(
+    name = "test_solver",
+    srcs = ["tests/test_solver.cpp"],
+    deps = [":CRISP"],
+    visibility = ["//visibility:public"],
 )
