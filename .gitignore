@@ -4,3 +4,4 @@ bazel-*
 MODULE.bazel
 MODULE.bazel.lock
 .vscode/
+*.so
