@@ -48,8 +48,10 @@ inline void EvaluateCostSparseGradient(Binding<QuadraticCost>* cost_binding, int
 
 inline void EvaluateCostSparseHessian(Binding<QuadraticCost>* cost_binding, int n_vars, std::vector<int> var_indices,
                                       const vector_t& x, sparse_matrix_t* hessian) {
-  for (int j = 0; j < n_vars; ++j) {
-    (*hessian).insert(var_indices[j], var_indices[j]) = cost_binding->evaluator()->Q()(j, j);
+  for (int i = 0; i < n_vars; ++i) {
+    for (int j = 0; j < n_vars; ++j) {
+      hessian->insert(var_indices[i], var_indices[j]) = cost_binding->evaluator()->Q()(i, j);
+    }
   }
   hessian->makeCompressed();
 }
@@ -112,10 +114,6 @@ class ObjectiveFunction : public ValueFunction {
       EvaluateCostSparseHessian(obj_function_, n_bind_vars_, var_indices_, x, &hessian);
       return hessian;
     };
-
-    // Call function from Drake to compute these values
-    nnzJacobian_ = 0;
-    nnzHessian_ = 0;
   }
 
   //  for pybind
@@ -366,6 +364,8 @@ class ObjectiveFunction : public ValueFunction {
   void setDecisionVariableIndices(const MathematicalProgram& prog) {
     total_n_vars_ = prog.num_vars();
     n_bind_vars_ = obj_function_->GetNumElements();
+    nnzJacobian_ = n_bind_vars_;
+    nnzHessian_ = n_bind_vars_ * n_bind_vars_;
     var_indices_.resize(n_bind_vars_);
     for (int i = 0; i < n_bind_vars_; ++i) {
       var_indices_.at(i) = prog.FindDecisionVariableIndex(obj_function_->variables()(i));

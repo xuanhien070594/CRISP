@@ -120,16 +120,15 @@ int main() {
   vector_t equalityConstraints = trackingProblem.evaluateEqualityConstraints(x);
   std::cout << "Equality constraints: " << equalityConstraints.transpose() << std::endl;
   sparse_matrix_t equalityJacobian = trackingProblem.evaluateEqualityConstraintsJacobian(x);
-  // printSparseMatrix(equalityJacobian);
-  triplet_vector_t equalityJacobianTriplet = trackingProblem.evaluateEqualityConstraintsJacobianTriplet(x);
-  // printTripletVector(equalityJacobianTriplet);
+  std::cout << "Equality constraints Jacobian: \n" << equalityJacobian.toDense() << std::endl;
+  CSRSparseMatrix equalityJacobianCSR = trackingProblem.evaluateEqualityConstraintsJacobianCSR(x);
+  equalityJacobianCSR.print();
 
   vector_t inequalityConstraints = trackingProblem.evaluateInequalityConstraints(x);
   std::cout << "Inequality constraints: " << inequalityConstraints.transpose() << std::endl;
   sparse_matrix_t inequalityJacobian = trackingProblem.evaluateInequalityConstraintsJacobian(x);
-  // printSparseMatrix(inequalityJacobian);
-  triplet_vector_t inequalityJacobianTriplet = trackingProblem.evaluateInequalityConstraintsJacobianTriplet(x);
-  // printTripletVector(inequalityJacobianTriplet);
+  std::cout << "Inequality constraints Jacobian: \n" << inequalityJacobian.toDense() << std::endl;
+
   // print name of constraints and objectives
   std::vector<std::string> eqconstraintNames = trackingProblem.getEqualityParamNames();
   std::vector<std::string> ineqconstraintNames = trackingProblem.getInequalityParamNames();

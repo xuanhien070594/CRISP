@@ -1,7 +1,3 @@
-# -*- mode: python -*-
-# vi: set ft=python :
-package(default_visibility = ["//visibility:public"])
-load("@rules_cc//cc:defs.bzl", "cc_library", "cc_binary")
 load("@drake//tools/install:install.bzl", "install")
 load(
     "@drake//tools/skylark:pybind.bzl",
@@ -10,53 +6,62 @@ load(
     "get_pybind_package_info",
     "pybind_py_library",
 )
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library")
 load("@rules_python//python:packaging.bzl", "py_package")
+
+# -*- mode: python -*-
+# vi: set ft=python :
+package(default_visibility = ["//visibility:public"])
 
 cc_library(
     name = "CRISP",
     srcs = ["src/cppad_core/CppAdInterface.cpp"],
     hdrs = glob(["include/**/*.h"]),
     includes = ["include"],
-    deps = [
-        "@drake//:drake_shared_library",
-        "@cppad//:cppad"
+    linkopts = [
+        "-ldl",
+        "-lboost_filesystem",
+        "-lboost_system",
     ],
-    linkopts = ["-ldl", "-lboost_filesystem", "-lboost_system"],
     visibility = ["//visibility:public"],
+    deps = [
+        "@cppad",
+        "@drake//:drake_shared_library",
+    ],
 )
 
-pybind_py_library(
-    name = "pyCRISP",
-    cc_so_name = "pyCRISP",
-    cc_srcs = ["python/pybindSolver.cpp"],
-    cc_deps = ["//src/core:CRISP"]
-)
+# pybind_py_library(
+#     name = "pyCRISP",
+#     cc_so_name = "pyCRISP",
+#     cc_srcs = ["python/pybindSolver.cpp"],
+#     cc_deps = ["//src/core:CRISP"]
+# )
 
 # Build targets for testing
 cc_binary(
     name = "test_cppad_interface",
     srcs = ["tests/test_cppad_interface.cpp"],
-    deps = [":CRISP"],
     visibility = ["//visibility:public"],
+    deps = [":CRISP"],
 )
 
 cc_binary(
     name = "test_optimizationProblem",
     srcs = ["tests/test_optimizationProblem.cpp"],
-    deps = [":CRISP"],
     visibility = ["//visibility:public"],
+    deps = [":CRISP"],
 )
 
 cc_binary(
     name = "test_optimizationProblemWithDrake",
     srcs = ["tests/test_optimizationProblemWithDrake.cpp"],
+    visibility = ["//visibility:public"],
     deps = [":CRISP"],
-    visibility = ["//visibility:public"]
 )
 
 cc_binary(
     name = "test_solver",
     srcs = ["tests/test_solver.cpp"],
-    deps = [":CRISP"],
     visibility = ["//visibility:public"],
+    deps = [":CRISP"],
 )

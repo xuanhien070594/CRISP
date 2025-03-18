@@ -305,17 +305,17 @@ class OptimizationProblem {
 
       size_t constrJacNonZeros = constraints[i]->getNumNonZerosJacobian();
       size_t constrJacRows = constraints[i]->getFunDim();
-      std::memcpy(jacobianCSR.innerIndices.data() + currentNonZero, constrJacobianCSR.innerIndices.data(),
-                  constrJacNonZeros * sizeof(size_t));
-      std::memcpy(jacobianCSR.values.data() + currentNonZero, constrJacobianCSR.values.data(),
-                  constrJacNonZeros * sizeof(scalar_t));
+      std::copy(constrJacobianCSR.innerIndices.begin(), constrJacobianCSR.innerIndices.begin() + constrJacNonZeros,
+                jacobianCSR.innerIndices.data() + currentNonZero);
+      std::copy(constrJacobianCSR.values.begin(), constrJacobianCSR.values.begin() + constrJacNonZeros,
+                jacobianCSR.values.data() + currentNonZero);
 
       // adding an offset to the outer index
       for (size_t& val : constrJacobianCSR.outerIndex) {
         val += currentNonZero;
       }
-      std::memcpy(jacobianCSR.outerIndex.data() + currentRow + 1, constrJacobianCSR.outerIndex.data() + 1,
-                  constrJacRows * sizeof(size_t));
+      std::copy(constrJacobianCSR.outerIndex.begin() + 1, constrJacobianCSR.outerIndex.end(),
+                jacobianCSR.outerIndex.data() + currentRow + 1);
       currentRow += constrJacRows;
       currentNonZero += constrJacNonZeros;
     }
