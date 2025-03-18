@@ -1,6 +1,8 @@
 #ifndef OPTIMIZATION_PROBLEM_H
 #define OPTIMIZATION_PROBLEM_H
 
+#include <memory>
+
 #include "common/ParametersManager.h"
 #include "problem_core/ConstraintFunction.h"
 #include "problem_core/ObjectiveFunction.h"
@@ -32,6 +34,32 @@ class OptimizationProblem {
         numNonZerosInequalityJacobian_(0),
         numNonZerosObjectiveHessian_(0),
         numNonZerosObjectiveJacobian_(0) {}
+  void parseDrakeMathematicalProgram(const MathematicalProgram& prog) {
+    // Parse all costs and add them as objectives
+    for (const auto& binding : prog.quadratic_costs()) {
+      auto obj_ptr =
+          std::make_shared<ObjectiveFunction>(prog.num_vars(), binding.evaluator()->get_description(), &binding);
+      obj_ptr->setDecisionVariableIndices(prog);
+      addObjective(obj_ptr);
+    }
+
+    // Parse all constraints and add them as equality or inequality constraints
+    for (const auto& binding : prog.GetAllConstraints()) {
+      auto constraint = binding.evaluator();
+      vector_t lower_bound = constraint->lower_bound();
+      vector_t upper_bound = constraint->upper_bound();
+
+      auto constraint_ptr = std::make_shared<ConstraintFunction>(
+          prog.num_vars(), binding.evaluator()->get_description(), std::make_shared<Binding<Constraint>>(binding));
+      constraint_ptr->setDecisionVariableIndices(prog);
+
+      if (std::equal(lower_bound.data(), lower_bound.data() + lower_bound.size(), upper_bound.data())) {
+        addEqualityConstraint(constraint_ptr);
+      } else {
+        addInequalityConstraint(constraint_ptr);
+      }
+    }
+  }
 
   // Add objective and constraint functions
   void addObjective(const std::shared_ptr<ObjectiveFunction>& objective) {

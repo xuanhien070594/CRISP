@@ -30,12 +30,12 @@ cc_library(
     ],
 )
 
-# pybind_py_library(
-#     name = "pyCRISP",
-#     cc_so_name = "pyCRISP",
-#     cc_srcs = ["python/pybindSolver.cpp"],
-#     cc_deps = ["//src/core:CRISP"]
-# )
+pybind_py_library(
+    name = "pyCRISP",
+    cc_deps = ["//src/core:CRISP"],
+    cc_so_name = "pyCRISP",
+    cc_srcs = ["python/pybindSolver.cpp"],
+)
 
 # Build targets for testing
 cc_binary(

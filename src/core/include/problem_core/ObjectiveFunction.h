@@ -19,7 +19,7 @@ using Eigen::VectorXd;
 
 namespace CRISP {
 
-inline void EvaluateCost(Binding<QuadraticCost>* cost_binding, int n_vars, std::vector<int> var_indices,
+inline void EvaluateCost(const Binding<QuadraticCost>* cost_binding, int n_vars, std::vector<int> var_indices,
                          const vector_t& x, vector_t* y) {
   VectorXd this_x(n_vars);
   for (int i = 0; i < n_vars; ++i) {
@@ -28,8 +28,8 @@ inline void EvaluateCost(Binding<QuadraticCost>* cost_binding, int n_vars, std::
   cost_binding->evaluator()->Eval(this_x, y);
 }
 
-inline void EvaluateCostSparseGradient(Binding<QuadraticCost>* cost_binding, int n_vars, std::vector<int> var_indices,
-                                       const vector_t& x, sparse_matrix_t* grad) {
+inline void EvaluateCostSparseGradient(const Binding<QuadraticCost>* cost_binding, int n_vars,
+                                       std::vector<int> var_indices, const vector_t& x, sparse_matrix_t* grad) {
   drake::AutoDiffVecXd ty(1);
   VectorXd this_x(n_vars);
   for (int i = 0; i < n_vars; ++i) {
@@ -46,8 +46,8 @@ inline void EvaluateCostSparseGradient(Binding<QuadraticCost>* cost_binding, int
   grad->makeCompressed();
 }
 
-inline void EvaluateCostSparseHessian(Binding<QuadraticCost>* cost_binding, int n_vars, std::vector<int> var_indices,
-                                      const vector_t& x, sparse_matrix_t* hessian) {
+inline void EvaluateCostSparseHessian(const Binding<QuadraticCost>* cost_binding, int n_vars,
+                                      std::vector<int> var_indices, const vector_t& x, sparse_matrix_t* hessian) {
   for (int i = 0; i < n_vars; ++i) {
     for (int j = 0; j < n_vars; ++j) {
       hessian->insert(var_indices[i], var_indices[j]) = cost_binding->evaluator()->Q()(i, j);
@@ -90,7 +90,7 @@ class ObjectiveFunction : public ValueFunction {
 
   // Constructor for the cost functions of Drake MathematicalProgram
   // Costs and Constraints of MathematicalProgram do not accept parameters
-  ObjectiveFunction(size_t variableDim, const std::string& functionName, Binding<QuadraticCost>* function,
+  ObjectiveFunction(size_t variableDim, const std::string& functionName, const Binding<QuadraticCost>* function,
                     SpecifiedFunctionLevel specifiedFunctionLevel = SpecifiedFunctionLevel::HESSIAN)
       : obj_function_(function),
         specifiedFunctionLevel_(specifiedFunctionLevel),
@@ -373,7 +373,7 @@ class ObjectiveFunction : public ValueFunction {
   }
 
  protected:
-  Binding<QuadraticCost>* obj_function_;
+  const Binding<QuadraticCost>* obj_function_;
   SpecifiedFunctionLevel specifiedFunctionLevel_;
   // User specified function information.
   std::function<sparse_matrix_t(const vector_t&)> hessianFunction_;

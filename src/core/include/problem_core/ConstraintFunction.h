@@ -2,6 +2,7 @@
 #define CONSTRAINT_FUNCTION_H
 
 #include <algorithm>
+#include <memory>
 
 #include "common/ValueFunction.h"
 #include <common/BasicTypes.h>
@@ -15,7 +16,9 @@ using drake::solvers::MathematicalProgram;
 
 // Only first order information is needed for constraints
 namespace CRISP {
-inline void EvaluateConstraint(Binding<Constraint>* constraint_binding, int n_vars, std::vector<int> var_indices,
+enum class ConstraintType { EQUALITY, INEQUALITY_BOUNDED, INEQUALITY_UNBOUNDED_UPPER, INEQUALITY_UNBOUNDED_LOWER };
+inline void EvaluateConstraint(const std::shared_ptr<Binding<Constraint>> constraint_binding,
+                               ConstraintType constraint_type, int n_vars, std::vector<int> var_indices,
                                const vector_t& x, vector_t* y) {
   vector_t this_x(n_vars);
   for (int i = 0; i < n_vars; ++i) {
@@ -28,6 +31,7 @@ inline void EvaluateConstraint(Binding<Constraint>* constraint_binding, int n_va
 
   // for equality constraints like Ax = b, MathematicalProgram only evaluates Ax. However, we'd like
   // to compute Ax - b, so we need to subtract b from the result.
+
   if (std::equal(lower_bound.data(), lower_bound.data() + lower_bound.size(), upper_bound.data())) {
     constraint_binding->evaluator()->Eval(this_x, y);
     for (int i = 0; i < y->size(); ++i) {
@@ -45,8 +49,9 @@ inline void EvaluateConstraint(Binding<Constraint>* constraint_binding, int n_va
   }
 }
 
-inline void EvaluateConstraintSparseGradient(Binding<Constraint>* constraint_binding, int n_vars,
-                                             std::vector<int> var_indices, const vector_t& x, sparse_matrix_t* grad) {
+inline void EvaluateConstraintSparseGradient(const std::shared_ptr<Binding<Constraint>> constraint_binding,
+                                             ConstraintType constraint_type, int n_vars, std::vector<int> var_indices,
+                                             const vector_t& x, sparse_matrix_t* grad) {
   int num_constraints = constraint_binding->evaluator()->num_constraints();
   drake::AutoDiffVecXd ty(num_constraints);
   vector_t this_x(n_vars);
@@ -104,7 +109,8 @@ class ConstraintFunction : public ValueFunction {
     parameterDim_ = parameterDim;
     funDim_ = cppadInterface_->getFunDim();
   }
-  ConstraintFunction(size_t variableDim, const std::string& functionName, Binding<Constraint>* function,
+  ConstraintFunction(size_t variableDim, const std::string& functionName,
+                     const std::shared_ptr<Binding<Constraint>> function,
                      SpecifiedFunctionLevel specifiedFunctionLevel = SpecifiedFunctionLevel::GRADIENT)
       : obj_function_(function),
         specifiedFunctionLevel_(specifiedFunctionLevel),
@@ -113,13 +119,13 @@ class ConstraintFunction : public ValueFunction {
         isParameterized_(false) {
     valueFunction_ = [this](const vector_t& x) -> vector_t {
       vector_t y(funDim_);
-      EvaluateConstraint(obj_function_, n_bind_vars_, var_indices_, x, &y);
+      EvaluateConstraint(obj_function_, constraint_type_, n_bind_vars_, var_indices_, x, &y);
       return y;
     };
 
     gradientFunction_ = [this](const vector_t& x) -> sparse_matrix_t {
       sparse_matrix_t grad(funDim_, total_n_vars_);
-      EvaluateConstraintSparseGradient(obj_function_, n_bind_vars_, var_indices_, x, &grad);
+      EvaluateConstraintSparseGradient(obj_function_, constraint_type_, n_bind_vars_, var_indices_, x, &grad);
       return grad;
     };
   }
@@ -271,11 +277,27 @@ class ConstraintFunction : public ValueFunction {
 
   const std::string& getFunctionName() const { return functionName_; }
 
+  bool isInfinityBound(const vector_t& bound) {
+    for (int i = 0; i < bound.size(); ++i) {
+      if (bound(i) == std::numeric_limits<double>::infinity()) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   void setDecisionVariableIndices(const MathematicalProgram& prog) {
     vector_t lower_bound = obj_function_->evaluator()->lower_bound();
     vector_t upper_bound = obj_function_->evaluator()->upper_bound();
     funDim_ = obj_function_->evaluator()->num_constraints();
-    if (!std::equal(lower_bound.data(), lower_bound.data() + lower_bound.size(), upper_bound.data())) {
+    if (std::equal(lower_bound.data(), lower_bound.data() + lower_bound.size(), upper_bound.data())) {
+      constraintType_ = ConstraintType::EQUALITY;
+    } else if (isInfinityBound(lower_bound)) {
+      constraintType_ = ConstraintType::INEQUALITY_UNBOUNDED_LOWER;
+    } else if (isInfinityBound(upper_bound)) {
+      constraintType_ = ConstraintType::INEQUALITY_UNBOUNDED_UPPER;
+    } else {
+      constraintType_ = ConstraintType::INEQUALITY_BOUNDED;
       funDim_ = funDim_ * 2;
     }
     total_n_vars_ = prog.num_vars();
@@ -288,8 +310,9 @@ class ConstraintFunction : public ValueFunction {
   }
 
  private:
-  Binding<Constraint>* obj_function_;
+  const std::shared_ptr<Binding<Constraint>> obj_function_;
   SpecifiedFunctionLevel specifiedFunctionLevel_;
+  ConstraintType constraint_type_;
   size_t variableDim_ = 0;
   size_t parameterDim_ = 0;
   size_t funDim_ = 0;
