@@ -32,10 +32,20 @@ inline void EvaluateConstraint(const std::shared_ptr<Binding<Constraint>> constr
   // for equality constraints like Ax = b, MathematicalProgram only evaluates Ax. However, we'd like
   // to compute Ax - b, so we need to subtract b from the result.
 
-  if (std::equal(lower_bound.data(), lower_bound.data() + lower_bound.size(), upper_bound.data())) {
+  if (constraint_type == ConstraintType::EQUALITY) {
     constraint_binding->evaluator()->Eval(this_x, y);
     for (int i = 0; i < y->size(); ++i) {
       (*y)(i) = (*y)(i)-lower_bound(i);
+    }
+  } else if (constraint_type == ConstraintType::INEQUALITY_UNBOUNDED_UPPER) {
+    constraint_binding->evaluator()->Eval(this_x, y);
+    for (int i = 0; i < num_constraints; ++i) {
+      (*y)(i) = (*y)(i)-lower_bound(i);
+    }
+  } else if (constraint_type == ConstraintType::INEQUALITY_UNBOUNDED_LOWER) {
+    constraint_binding->evaluator()->Eval(this_x, y);
+    for (int i = 0; i < num_constraints; ++i) {
+      (*y)(i) = upper_bound(i) - (*y)(i);
     }
   } else {
     // MathematicalProgram treats min <= x <= max as a single constraint but CRISP counts 2
@@ -58,23 +68,43 @@ inline void EvaluateConstraintSparseGradient(const std::shared_ptr<Binding<Const
   for (int i = 0; i < n_vars; ++i) {
     this_x(i) = x(var_indices[i]);
   }
-
   constraint_binding->evaluator()->Eval(InitializeAutoDiff(this_x), &ty);
 
-  vector_t lower_bound = constraint_binding->evaluator()->lower_bound();
-  vector_t upper_bound = constraint_binding->evaluator()->upper_bound();
-  if (std::equal(lower_bound.data(), lower_bound.data() + lower_bound.size(), upper_bound.data())) {
-    for (int i = 0; i < num_constraints; ++i) {
-      for (int j = 0; j < n_vars; ++j) {
-        (*grad).insert(i, var_indices[j]) = ty(i).derivatives()(j);
+  if (constraint_binding->evaluator()->gradient_sparsity_pattern().has_value()) {
+    auto gradient_sparsity_pattern = constraint_binding->evaluator()->gradient_sparsity_pattern().value();
+    for (int i = 0; i < gradient_sparsity_pattern.size(); ++i) {
+      auto row_idx = gradient_sparsity_pattern[i].first;
+      auto col_idx = gradient_sparsity_pattern[i].second;
+
+      if (constraint_type == ConstraintType::EQUALITY ||
+          constraint_type == ConstraintType::INEQUALITY_UNBOUNDED_UPPER) {
+        (*grad).insert(row_idx, col_idx) = ty(row_idx).derivatives()(col_idx);
+      } else if (constraint_type == ConstraintType::INEQUALITY_UNBOUNDED_LOWER) {
+        (*grad).insert(row_idx, col_idx) = -ty(row_idx).derivatives()(col_idx);
+      } else {
+        (*grad).insert(row_idx, col_idx) = -ty(row_idx).derivatives()(col_idx);
+        (*grad).insert(row_idx + num_constraints, col_idx) = ty(row_idx).derivatives()(col_idx);
       }
     }
-
   } else {
-    for (int i = 0; i < num_constraints; ++i) {
-      for (int j = 0; j < n_vars; ++j) {
-        (*grad).insert(i, var_indices[j]) = -ty(i).derivatives()(j);
-        (*grad).insert(i + num_constraints, var_indices[j]) = ty(i).derivatives()(j);
+    if (constraint_type == ConstraintType::EQUALITY || constraint_type == ConstraintType::INEQUALITY_UNBOUNDED_UPPER) {
+      for (int i = 0; i < num_constraints; ++i) {
+        for (int j = 0; j < n_vars; ++j) {
+          (*grad).insert(i, var_indices[j]) = ty(i).derivatives()(j);
+        }
+      }
+    } else if (constraint_type == ConstraintType::INEQUALITY_UNBOUNDED_LOWER) {
+      for (int i = 0; i < num_constraints; ++i) {
+        for (int j = 0; j < n_vars; ++j) {
+          (*grad).insert(i, var_indices[j]) = -ty(i).derivatives()(j);
+        }
+      }
+    } else {
+      for (int i = 0; i < num_constraints; ++i) {
+        for (int j = 0; j < n_vars; ++j) {
+          (*grad).insert(i, var_indices[j]) = -ty(i).derivatives()(j);
+          (*grad).insert(i + num_constraints, var_indices[j]) = ty(i).derivatives()(j);
+        }
       }
     }
   }
@@ -291,18 +321,24 @@ class ConstraintFunction : public ValueFunction {
     vector_t upper_bound = obj_function_->evaluator()->upper_bound();
     funDim_ = obj_function_->evaluator()->num_constraints();
     if (std::equal(lower_bound.data(), lower_bound.data() + lower_bound.size(), upper_bound.data())) {
-      constraintType_ = ConstraintType::EQUALITY;
+      constraint_type_ = ConstraintType::EQUALITY;
     } else if (isInfinityBound(lower_bound)) {
-      constraintType_ = ConstraintType::INEQUALITY_UNBOUNDED_LOWER;
+      constraint_type_ = ConstraintType::INEQUALITY_UNBOUNDED_LOWER;
     } else if (isInfinityBound(upper_bound)) {
-      constraintType_ = ConstraintType::INEQUALITY_UNBOUNDED_UPPER;
+      constraint_type_ = ConstraintType::INEQUALITY_UNBOUNDED_UPPER;
     } else {
-      constraintType_ = ConstraintType::INEQUALITY_BOUNDED;
+      constraint_type_ = ConstraintType::INEQUALITY_BOUNDED;
       funDim_ = funDim_ * 2;
     }
     total_n_vars_ = prog.num_vars();
     n_bind_vars_ = obj_function_->GetNumElements();
-    nnzJacobian_ = n_bind_vars_;
+
+    if (obj_function_->evaluator()->gradient_sparsity_pattern().has_value()) {
+      auto gradient_sparsity_pattern = obj_function_->evaluator()->gradient_sparsity_pattern().value();
+      nnzJacobian_ = gradient_sparsity_pattern.size();
+    } else {
+      nnzJacobian_ = n_bind_vars_ * funDim_;
+    }
     var_indices_.resize(n_bind_vars_);
     for (int i = 0; i < n_bind_vars_; ++i) {
       var_indices_.at(i) = prog.FindDecisionVariableIndex(obj_function_->variables()(i));

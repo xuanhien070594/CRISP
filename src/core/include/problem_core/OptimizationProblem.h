@@ -166,15 +166,8 @@ class OptimizationProblem {
   }
 
   CSRSparseMatrix evaluateObjectiveGradientCSR(const vector_t& x) const {
-    CSRSparseMatrix gradients;
-    if (objectives_[0]->isParameterized()) {
-      auto params = parameterManager_->getParameters(objectives_[0]->getFunctionName());
-      gradients = objectives_[0]->getGradientCSR(x, params);
-    } else {
-      gradients = objectives_[0]->getGradientCSR(x);
-    }
-
-    return gradients;
+    CSRSparseMatrix gradientsCSR(evaluateObjectiveGradient(x));
+    return gradientsCSR;
   }
 
   sparse_matrix_t evaluateObjectiveHessian(const vector_t& x) const {
@@ -206,14 +199,8 @@ class OptimizationProblem {
   }
 
   CSRSparseMatrix evaluateObjectiveHessianCSR(const vector_t& x) const {
-    CSRSparseMatrix hessians;
-    if (objectives_[0]->isParameterized()) {
-      auto params = parameterManager_->getParameters(objectives_[0]->getFunctionName());
-      hessians = objectives_[0]->getHessianCSR(x, params);
-    } else {
-      hessians = objectives_[0]->getHessianCSR(x);
-    }
-    return hessians;
+    CSRSparseMatrix hessianCSR(evaluateObjectiveHessian(x));
+    return hessianCSR;
   }
 
   size_t getVariableDim() const { return variableDim_; }

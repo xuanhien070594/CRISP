@@ -220,7 +220,7 @@ class SolverInterface {
       // std::cout << "Subproblem construction time: " << std::chrono::duration_cast<std::chrono::microseconds>(end -
       // start).count() << "us" << std::endl;
       subsolution_ = solveSubproblem(subproblem_);  // solve the subproblem
-      std::memcpy(pTrial_.data(), subsolution_.data(), variableDim_ * sizeof(scalar_t));
+      std::copy(subsolution_.data(), subsolution_.data() + variableDim_, pTrial_.data());
       // evaluate necessary value at the trial step
       xIterateNext_ = xIterate_ + pTrial_;
       // auto starteval = std::chrono::high_resolution_clock::now();
@@ -243,7 +243,7 @@ class SolverInterface {
         subproblem_.beq = -(eqValuesNext - eqJacMat_ * pTrial_);
         subproblem_.bineq = -(ineqValuesNext - ineqJacMat_ * pTrial_);
         subsolution_ = solveSubproblem(subproblem_);
-        std::memcpy(pTrial_.data(), subsolution_.data(), variableDim_ * sizeof(scalar_t));
+        std::copy(subsolution_.data(), subsolution_.data() + variableDim_, pTrial_.data());
         xIterateNext_ = xIterate_ + pTrial_;
         objNext = problem_.evaluateObjective(xIterateNext_);
         eqValuesNext = problem_.evaluateEqualityConstraints(xIterateNext_);
@@ -404,9 +404,9 @@ class SolverInterface {
         mu_ineq[i] = mu_matrix_.valuePtr()[numEqualityConstraints_ + i];
       }
       // memory copy
-      std::memcpy(subproblem_.g.data() + variableDim_, mu_eq.data(), numEqualityConstraints_ * sizeof(scalar_t));
-      std::memcpy(subproblem_.g.data() + offsetW_, mu_eq.data(), numEqualityConstraints_ * sizeof(scalar_t));
-      std::memcpy(subproblem_.g.data() + offsetT_, mu_ineq.data(), numInequalityConstraints_ * sizeof(scalar_t));
+      std::copy(mu_eq.data(), mu_eq.data() + numEqualityConstraints_, subproblem_.g.data() + variableDim_);
+      std::copy(mu_eq.data(), mu_eq.data() + numEqualityConstraints_, subproblem_.g.data() + offsetW_);
+      std::copy(mu_ineq.data(), mu_ineq.data() + numInequalityConstraints_, subproblem_.g.data() + offsetT_);
     } else {
       subproblem_.g.setConstant(mu_);
       subproblem_.g.head(variableDim_) = objJac;
@@ -585,15 +585,16 @@ class SolverInterface {
       numNonZeroCurrentRow = Aeq.outerIndex[i + 1] - Aeq.outerIndex[i];
       // Aeq_aug[1].segment(numNonZeroTotal, numNonZeroCurrentRow + 2) << Aeq[1].segment(Aeq[0](i),
       // numNonZeroCurrentRow), i + offsetV_, i + offsetW_;
-      std::memcpy(Aeq_aug.innerIndices.data() + numNonZeroTotal, Aeq.innerIndices.data() + Aeq.outerIndex[i],
-                  numNonZeroCurrentRow * sizeof(size_t));
+      std::copy(Aeq.innerIndices.data() + Aeq.outerIndex[i],
+                Aeq.innerIndices.data() + Aeq.outerIndex[i] + numNonZeroCurrentRow,
+                Aeq_aug.innerIndices.data() + numNonZeroTotal);
       // add i + offsetV_ and i + offsetW_ to the end of the vector
       Aeq_aug.innerIndices[numNonZeroTotal + numNonZeroCurrentRow] = i + offsetV_;
       Aeq_aug.innerIndices[numNonZeroTotal + numNonZeroCurrentRow + 1] = i + offsetW_;
       // Aeq_aug[2].segment(numNonZeroTotal, numNonZeroCurrentRow + 2) << Aeq[2].segment(Aeq[0](i),
       // numNonZeroCurrentRow), -1.0, 1.0;
-      std::memcpy(Aeq_aug.values.data() + numNonZeroTotal, Aeq.values.data() + Aeq.outerIndex[i],
-                  numNonZeroCurrentRow * sizeof(scalar_t));
+      std::copy(Aeq.values.data() + Aeq.outerIndex[i], Aeq.values.data() + Aeq.outerIndex[i] + numNonZeroCurrentRow,
+                Aeq_aug.values.data() + numNonZeroTotal);
       Aeq_aug.values[numNonZeroTotal + numNonZeroCurrentRow] = -1.0;
       Aeq_aug.values[numNonZeroTotal + numNonZeroCurrentRow + 1] = 1.0;
       numNonZeroTotal += numNonZeroCurrentRow + 2;
@@ -606,30 +607,30 @@ class SolverInterface {
     for (size_t i = 0; i < numInequalityConstraints_; ++i) {
       Aineq_aug.outerIndex[i + 1] = Aineq.outerIndex[i + 1] + (i + 1);  // outer iterator
       numNonZeroCurrentRow = Aineq.outerIndex[i + 1] - Aineq.outerIndex[i];
-      // Aineq_aug[1].segment(numNonZeroTotal, numNonZeroCurrentRow + 1) << Aineq[1].segment(Aineq[0](i),
-      // numNonZeroCurrentRow), i + offsetT_;
-      std::memcpy(Aineq_aug.innerIndices.data() + numNonZeroTotal, Aineq.innerIndices.data() + Aineq.outerIndex[i],
-                  numNonZeroCurrentRow * sizeof(size_t));
+      std::copy(Aineq.innerIndices.data() + Aineq.outerIndex[i],
+                Aineq.innerIndices.data() + Aineq.outerIndex[i] + numNonZeroCurrentRow,
+                Aineq_aug.innerIndices.data() + numNonZeroTotal);
       Aineq_aug.innerIndices[numNonZeroTotal + numNonZeroCurrentRow] = i + offsetT_;
-      // Aineq_aug[2].segment(numNonZeroTotal, numNonZeroCurrentRow + 1) << Aineq[2].segment(Aineq[0](i),
-      // numNonZeroCurrentRow), 1.0;
-      std::memcpy(Aineq_aug.values.data() + numNonZeroTotal, Aineq.values.data() + Aineq.outerIndex[i],
-                  numNonZeroCurrentRow * sizeof(scalar_t));
+
+      std::copy(Aineq.values.data() + Aineq.outerIndex[i],
+                Aineq.values.data() + Aineq.outerIndex[i] + numNonZeroCurrentRow,
+                Aineq_aug.values.data() + numNonZeroTotal);
       Aineq_aug.values[numNonZeroTotal + numNonZeroCurrentRow] = 1.0;
       numNonZeroTotal += numNonZeroCurrentRow + 1;
     }
   }
+
   // [H,0;0,0]
   void buildBlockObjHessCSR(const CSRSparseMatrix& objHess, CSRSparseMatrix& objHess_aug) {
-    std::memcpy(objHess_aug.innerIndices.data(), objHess.innerIndices.data(),
-                objHess.innerIndices.size() * sizeof(size_t));
-    std::memcpy(objHess_aug.values.data(), objHess.values.data(), objHess.values.size() * sizeof(scalar_t));
+    std::copy(objHess.innerIndices.data(), objHess.innerIndices.data() + objHess.innerIndices.size(),
+              objHess_aug.innerIndices.data());
+    std::copy(objHess.values.data(), objHess.values.data() + objHess.values.size(), objHess_aug.values.data());
     // objHess_aug[0].segment(0, variableDim_ + 1) = objHess[0].segment(0, variableDim_ + 1);
     // objHess_aug[0].segment(variableDim_ + 1, 2 * numEqualityConstraints_ + numInequalityConstraints_) =
     // vector_t::Constant(2 * numEqualityConstraints_ + numInequalityConstraints_, objHess[0](variableDim_));
-    std::memcpy(objHess_aug.outerIndex.data(), objHess.outerIndex.data(), (variableDim_ + 1) * sizeof(size_t));
+    std::copy(objHess.outerIndex.data(), objHess.outerIndex.data() + (variableDim_ + 1), objHess_aug.outerIndex.data());
     SizeVector temp(2 * numEqualityConstraints_ + numInequalityConstraints_, objHess.outerIndex[variableDim_]);
-    std::memcpy(objHess_aug.outerIndex.data() + variableDim_ + 1, temp.data(), temp.size() * sizeof(size_t));
+    std::copy(temp.data(), temp.data() + temp.size(), objHess_aug.outerIndex.data() + variableDim_ + 1);
   }
 
   // ----- variables ----- //

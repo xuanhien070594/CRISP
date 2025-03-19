@@ -1,8 +1,7 @@
-#include "solver_core/SolverInterface.h"
-// #include "common/MatlabHelper.h"
 #include "math.h"
 
-#include <chrono>
+#include "solver_core/SolverInterface.h"
+#include <common/BasicTypes.h>
 
 using namespace CRISP;
 
@@ -174,30 +173,20 @@ int main() {
   // define a theta from 0 to 2pi, and define different final state for the problem with equal interval, for example 20
   // degree
   xInitialStates << 0, 0, 0;
-  // set zero initial guess
   xInitialGuess.setZero();
-  SolverParameters params;
-  SolverInterface solver(pushboxProblem, params);
-  // solver.setHyperParameters("WeightedMode", vector_t::Constant(1, 1));
-  solver.setProblemParameters("pushboxInitialConstraints", xInitialStates);
-
-  //   vector_t equalityConstraints = pushboxProblem.evaluateEqualityConstraints(xInitialGuess);
-  //   std::cout << "Equality constraints: " << equalityConstraints.transpose() << std::endl;
 
   size_t num_segments = 18;
   scalar_t theta = 12 * 2 * M_PI / num_segments;
   xFinalStates << 3 * cos(theta), 3 * sin(theta), theta;
-  std::cout << "Desired state: " << xFinalStates.transpose() << std::endl;
+
+  SolverParameters params;
+  SolverInterface solver(pushboxProblem, params);
+  solver.setProblemParameters("pushboxInitialConstraints", xInitialStates);
   solver.setProblemParameters("pushboxObjective", xFinalStates);
-  scalar_t objValue = pushboxProblem.evaluateObjective(xInitialGuess);
   solver.setHyperParameters("trailTol", vector_t::Constant(1, 1e-3));
   solver.setHyperParameters("trustRegionTol", vector_t::Constant(1, 1e-3));
   solver.setHyperParameters("WeightedMode", vector_t::Constant(1, 1));
-  std::cout << "Objective value: " << objValue << std::endl;
-  vector_t equalityConstraints = pushboxProblem.evaluateEqualityConstraints(xInitialGuess);
-  std::cout << "Equality constraints: " << equalityConstraints.transpose() << std::endl;
-  vector_t inequalityConstraints = pushboxProblem.evaluateInequalityConstraints(xInitialGuess);
-  std::cout << "inEquality constraints: " << inequalityConstraints.transpose() << std::endl;
+  solver.setHyperParameters("verbose", vector_t::Constant(1, 1));
   solver.initialize(xInitialGuess);
   solver.solve();
   xOptimal = solver.getSolution();
