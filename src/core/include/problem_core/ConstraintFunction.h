@@ -309,7 +309,7 @@ class ConstraintFunction : public ValueFunction {
 
   bool isInfinityBound(const vector_t& bound) {
     for (int i = 0; i < bound.size(); ++i) {
-      if (bound(i) == std::numeric_limits<double>::infinity()) {
+      if (std::abs(bound(i)) == std::numeric_limits<double>::infinity()) {
         return true;
       }
     }

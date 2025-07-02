@@ -27,20 +27,27 @@ load("@drake//tools/workspace:default.bzl", "add_default_workspace")
 
 add_default_workspace()
 
+# Assume CppAD and PIQP are already installed in /usr/local, we can just use the existing headers and library
 new_local_repository(
     name = "cppad",
     path = "/usr/local",  # Path where CppAD is installed
     build_file_content = """
 cc_library(
-    name = "cppad",
-    hdrs = glob(["include/cppad/**/*.hpp"]),
+    name = "cppad_shared_lib",
+    srcs = ["lib/libcppad_lib.so"],  # Use .so if it's shared
     includes = ["include"],
     visibility = ["//visibility:public"],
 )
+""",
+)
 
+new_local_repository(
+    name = "piqp",
+    path = "/usr/local",  # Path where PIQP is installed
+    build_file_content = """
 cc_library(
-    name = "cppad_lib",
-    srcs = ["lib/libcppad_lib.so"],  # Use .so if it's shared
+    name = "piqp_shared_lib",
+    srcs = ["lib/libpiqp.so"],  # Use .so if it's shared
     includes = ["include"],
     visibility = ["//visibility:public"],
 )
