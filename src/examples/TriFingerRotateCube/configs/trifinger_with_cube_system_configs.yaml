@@ -1,0 +1,55 @@
+dt: 0.02
+show_collision_geometries: false
+package_map:
+  trifinger: "examples/TriFingerRotateCube"
+
+urdfs:
+  - "examples/TriFingerRotateCube/assets/trifinger/simplified_trifinger.urdf"
+  - "examples/TriFingerRotateCube/assets/cube/cube_v2.urdf"
+
+welded_links:
+  - body_of_child_link: "trifingeredu_simplified"
+    child_link: "base_link"
+    body_of_parent_link: "WorldModelInstance"
+    parent_link: "world"
+
+additional_joints: []
+
+contact_geoms:
+  - body_1: "trifingeredu_simplified"
+    link_1: "finger_tip_link_0"
+    body_2: "cube"
+    link_2: "cube"
+    align_tangential_force_basis_to_linear_vel: false
+  - body_1: "trifingeredu_simplified"
+    link_1: "finger_tip_link_120"
+    body_2: "cube"
+    link_2: "cube"
+    align_tangential_force_basis_to_linear_vel: false
+  - body_1: "trifingeredu_simplified"
+    link_1: "finger_tip_link_240"
+    body_2: "cube"
+    link_2: "cube"
+    align_tangential_force_basis_to_linear_vel: false
+  - body_1: "cube"
+    link_1: "ground_contact_point_1"
+    body_2: "WorldModelInstance"
+    link_2: "world"
+    align_tangential_force_basis_to_linear_vel: false
+  - body_1: "cube"
+    link_1: "ground_contact_point_3"
+    body_2: "WorldModelInstance"
+    link_2: "world"
+    align_tangential_force_basis_to_linear_vel: false
+  - body_1: "cube"
+    link_1: "ground_contact_point_5"
+    body_2: "WorldModelInstance"
+    link_2: "world"
+    align_tangential_force_basis_to_linear_vel: false
+  - body_1: "cube"
+    link_1: "ground_contact_point_7"
+    body_2: "WorldModelInstance"
+    link_2: "world"
+    align_tangential_force_basis_to_linear_vel: false
+
+contact_friction_coeffs: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]

@@ -11,3 +11,18 @@ cc_binary(
     visibility = ["//visibility:public"],
     deps = ["//src/core:CRISP", "@piqp//:piqp_shared_lib"],
 )
+
+py_binary(
+    name = "contact_implicit_trajopt",
+    srcs = [
+        "TriFingerRotateCube/contact_implicit_trajopt.py",
+        "TriFingerRotateCube/helper_functions/drake_helper_functions.py",
+        "TriFingerRotateCube/helper_functions/misc_helper_functions.py",
+        "TriFingerRotateCube/helper_functions/drake_system_helper_functions.py",
+    ],
+    data = [
+        "TriFingerRotateCube/configs/trifinger_with_cube_system_configs.yaml",
+    ],
+    visibility = ["//visibility:public"],
+    deps = ["//src/core:pyCRISP", "@drake//bindings/pydrake"],
+)
