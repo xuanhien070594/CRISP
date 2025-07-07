@@ -1,0 +1,46 @@
+planning_horizon: 20
+complementarity_relaxation: 1e-4
+print_math_prog: true
+
+# diagonal elements of state cost matrix Q (dim 31)
+# [finger1_pos (3), finger2_pos (3), finger3_pos (3),
+#  cube_quat (4), cube_pos (3),
+#  finger1_vel (3), finger2_vel (3), finger3_vel (3),
+#  cube_ang_vel (3), cube_lin_vel (3)]
+q_vec: [0, 0, 0, 0, 0, 0, 0, 0, 0,
+        20, 20, 20, 20, 100, 100, 100,
+        0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0]
+
+# diagonal elements of final state cost matrix Qf (dim 31)
+qf_vec: [0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0]
+
+# diagonal elements of input cost matrix R (dim 9)
+r_vec: [0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+# default initial state
+default_initial_state: [-0.01, 0.05, 0.0325, -0.01, -0.05, 0.0325, 0.05, 0, 0.0325,
+                        1, 0, 0, 0, 0, 0, 0.0325,
+                        0, 0, 0, 0, 0, 0, 0, 0, 0,
+                        0, 0, 0, 0, 0, 0]
+
+# lower bound on state (dim 31)
+x_lb: [-0.05, 0.01, 0.0275, -0.05, -0.09, 0.0275, 0.01, -0.04, 0.0275,
+       -1.5, -1.5, -1.5, -1.5, -0.05, -0.05, 0.03,
+       -30, -30, -30, -30, -30, -30, -30, -30, -30,
+       -30, -30, -30, -30, -30, -30]
+
+# upper bound on state (dim 31)
+x_ub: [0.03, 0.09, 0.0375, 0.03, -0.01, 0.0375, 0.09, 0.04, 0.0375,
+       1.5, 1.5, 1.5, 1.5, 0.05, 0.05, 0.0475,
+       30, 30, 30, 30, 30, 30, 30, 30, 30,
+       30, 30, 30, 30, 30, 30]
+
+# lower bound on input (dim 9)
+u_lb: [-5, -5, -5, -5, -5, -5, -5, -5, -5]
+
+# upper bound on input (dim 9)
+u_ub: [5, 5, 5, 5, 5, 5, 5, 5, 5]

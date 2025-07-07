@@ -1,11 +1,11 @@
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 from pydrake.autodiffutils import AutoDiffXd
 from pydrake.geometry import MeshcatVisualizer, SceneGraph
 from pydrake.multibody.plant import MultibodyPlant, MultibodyPlant_
-from pydrake.systems.framework import Context, Context_, DiagramBuilder
+from pydrake.systems.framework import Context, Context_, DiagramBuilder, DiagramBuilder_
 
 from .drake_helper_functions import create_plant_from_urdfs, initialize_meshcat
 
@@ -75,9 +75,13 @@ def setup_drake_system(
     Context_[AutoDiffXd],
     DiagramBuilder,
     Context,
+    DiagramBuilder_[AutoDiffXd],
+    Context_[AutoDiffXd],
     SceneGraph,
     Optional[MeshcatVisualizer],
     Optional[MeshcatVisualizer],
+    List[Dict[str, str]],
+    List[float],
 ]:
     """Create a Drake environment from configuration file.
 
@@ -104,6 +108,8 @@ def setup_drake_system(
             - plant_context_ad: AutoDiffXd context for the plant
             - plant_diagram: Built diagram
             - plant_diagram_context: Context for the diagram
+            - plant_diagram_ad: AutoDiffXd version of the diagram
+            - plant_diagram_ad_context: AutoDiffXd context for the diagram
             - scene_graph: Scene graph for visualization
             - visual_visualizer: Visual geometry visualizer
             - collision_visualizer: Collision geometry visualizer
@@ -140,29 +146,41 @@ def setup_drake_system(
     except Exception as e:
         raise RuntimeError(f"Failed to create plant from URDFs: {e}")
 
-    # Convert the plant to AutoDiffXd for optimization
-    plant_ad = plant.ToAutoDiffXd()
-
     # Build the diagram and create contexts
     plant_diagram = builder.Build()
     plant_diagram_context = plant_diagram.CreateDefaultContext()
+
+    # Convert the diagram to AutoDiffXd for optimization
+    plant_diagram_ad = plant_diagram.ToAutoDiffXd()
+    plant_diagram_ad_context = plant_diagram_ad.CreateDefaultContext()
 
     # Get mutable subsystem contexts
     plant_context = plant_diagram.GetMutableSubsystemContext(
         plant, plant_diagram_context
     )
-    plant_context_ad = plant_ad.CreateDefaultContext()
+    plant_ad = plant_diagram_ad.GetSubsystemByName("plant")
+    plant_ad_context = plant_diagram_ad.GetMutableSubsystemContext(
+        plant_ad, plant_diagram_ad_context
+    )
+
+    # Get contact pairs
+    contact_pairs = env_configs["contact_geoms"]
+    contact_friction_coeffs = env_configs["contact_friction_coeffs"]
 
     return (
         plant,
         plant_ad,
         plant_context,
-        plant_context_ad,
+        plant_ad_context,
         plant_diagram,
         plant_diagram_context,
+        plant_diagram_ad,
+        plant_diagram_ad_context,
         scene_graph,
         visual_visualizer,
         collision_visualizer,
+        contact_pairs,
+        contact_friction_coeffs,
     )
 
 
@@ -171,6 +189,14 @@ class DrakeSystem:
 
     This class holds all the components returned by setup_drake_system function,
     providing a clean interface for accessing the Drake simulation environment.
+
+    The class encapsulates:
+    - MultibodyPlant instances (regular and AutoDiffXd versions)
+    - Context objects for state management
+    - Diagram builders and contexts
+    - Scene graph for visualization
+    - Visualizers for debugging
+    - Contact pairs and friction coefficients for contact detection
     """
 
     def __init__(
@@ -178,12 +204,16 @@ class DrakeSystem:
         plant: MultibodyPlant,
         plant_ad: MultibodyPlant_[AutoDiffXd],
         plant_context: Context,
-        plant_context_ad: Context_[AutoDiffXd],
+        plant_ad_context: Context_[AutoDiffXd],
         plant_diagram: DiagramBuilder,
         plant_diagram_context: Context,
+        plant_diagram_ad: DiagramBuilder_[AutoDiffXd],
+        plant_diagram_ad_context: Context_[AutoDiffXd],
         scene_graph: SceneGraph,
         visual_visualizer: Optional[MeshcatVisualizer],
         collision_visualizer: Optional[MeshcatVisualizer],
+        contact_pairs: List[Dict[str, str]],
+        contact_friction_coeffs: List[float],
     ):
         """Initialize DrakeSystem with all Drake components.
 
@@ -191,22 +221,30 @@ class DrakeSystem:
             plant: MultibodyPlant for simulation
             plant_ad: AutoDiffXd version of plant for optimization
             plant_context: Context for the plant
-            plant_context_ad: AutoDiffXd context for the plant
+            plant_ad_context: AutoDiffXd context for the plant
             plant_diagram: Built diagram
             plant_diagram_context: Context for the diagram
+            plant_diagram_ad: AutoDiffXd version of the diagram
+            plant_diagram_ad_context: AutoDiffXd context for the diagram
             scene_graph: Scene graph for visualization
             visual_visualizer: Visual geometry visualizer
             collision_visualizer: Collision geometry visualizer
+            contact_pairs: List of contact geometry pairs for collision detection
+            contact_friction_coeffs: List of friction coefficients for contact pairs
         """
         self.plant = plant
         self.plant_ad = plant_ad
         self.plant_context = plant_context
-        self.plant_context_ad = plant_context_ad
+        self.plant_ad_context = plant_ad_context
         self.plant_diagram = plant_diagram
         self.plant_diagram_context = plant_diagram_context
+        self.plant_diagram_ad = plant_diagram_ad
+        self.plant_diagram_ad_context = plant_diagram_ad_context
         self.scene_graph = scene_graph
         self.visual_visualizer = visual_visualizer
         self.collision_visualizer = collision_visualizer
+        self.contact_pairs = contact_pairs
+        self.contact_friction_coeffs = contact_friction_coeffs
 
     @classmethod
     def from_config(cls, env_config_path: str) -> "DrakeSystem":

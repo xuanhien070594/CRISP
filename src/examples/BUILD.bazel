@@ -22,6 +22,7 @@ py_binary(
     ],
     data = [
         "TriFingerRotateCube/configs/trifinger_with_cube_system_configs.yaml",
+        "TriFingerRotateCube/configs/trajopt_configs.yaml",
     ],
     visibility = ["//visibility:public"],
     deps = ["//src/core:pyCRISP", "@drake//bindings/pydrake"],
