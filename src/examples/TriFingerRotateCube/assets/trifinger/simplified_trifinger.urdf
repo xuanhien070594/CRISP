@@ -1,5 +1,5 @@
 <?xml version="1.0" ?>
-<robot name="trifingeredu_simplified">
+<robot name="simplified_trifinger">
 
 <material name="fingeredu_0_material">
     <color rgba="0.6 0.0 0.0 1.0"/>

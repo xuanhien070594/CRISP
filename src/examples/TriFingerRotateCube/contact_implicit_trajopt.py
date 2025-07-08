@@ -12,46 +12,29 @@ from typing import Callable, Dict, List, Optional, Tuple, Union
 import numpy as np
 import numpy.typing as npt
 import yaml
+from helper_functions.drake_helper_functions import (
+    angle_axis_to_quaternion,
+    draw_frame_axes,
+)
 from helper_functions.drake_system_helper_functions import DrakeSystem
 from pydrake.autodiffutils import AutoDiffXd, ExtractValue
 from pydrake.common.eigen_geometry import Quaternion
-from pydrake.geometry import GeometryId
-from pydrake.math import RotationMatrix
+from pydrake.math import RigidTransform, RotationMatrix
 from pydrake.multibody.plant import MultibodyPlant, MultibodyPlant_
 from pydrake.multibody.tree import JacobianWrtVariable, RigidBody
-from pydrake.solvers import (
-    MathematicalProgram,
-    MathematicalProgramResult,
-    QuadraticConstraint,
-)
+from pydrake.solvers import MathematicalProgram, QuadraticConstraint
 from pydrake.systems.framework import Context, Context_
+from pydrake.trajectories import PiecewiseQuaternionSlerp
+from pydrake.geometry import (
+    Box,
+    GeometryId,
+    Rgba,
+)
 
 from src.core import pyCRISP
 
 ArrayLikeType = Union[npt.NDArray[np.float64], npt.NDArray[AutoDiffXd]]
 ScalarType = Union[float, AutoDiffXd]
-
-
-def angle_axis_to_quaternion(angle: float, axis: np.ndarray) -> np.ndarray:
-    """
-    Convert angle-axis representation to quaternion using Drake functions.
-
-    Args:
-        angle: Rotation angle in radians
-        axis: 3D unit vector representing rotation axis
-
-    Returns:
-        Quaternion as [w, x, y, z]
-    """
-    # For z-axis rotation, use Drake's MakeZRotation directly
-    if np.allclose(axis, [0, 0, 1]):
-        rotation_matrix = RotationMatrix.MakeZRotation(angle)
-    else:
-        # For other axes, use the general approach
-        rotation_matrix = RotationMatrix.MakeFromOneVector(axis, 2)
-        rotation_matrix = rotation_matrix.multiply(RotationMatrix.MakeZRotation(angle))
-    quaternion = Quaternion(rotation_matrix.matrix())
-    return np.array([quaternion.w(), quaternion.x(), quaternion.y(), quaternion.z()])
 
 
 @dataclass
@@ -61,14 +44,14 @@ class TrajOptConfigs:
     planning_horizon: int
     complementarity_relaxation: float
     print_math_prog: bool
-    q_vec: List[float]
-    qf_vec: List[float]
-    r_vec: List[float]
-    default_initial_state: List[float]
-    x_lb: List[float]
-    x_ub: List[float]
-    u_lb: List[float]
-    u_ub: List[float]
+    q_vec: np.ndarray
+    qf_vec: np.ndarray
+    r_vec: np.ndarray
+    default_initial_state: np.ndarray
+    x_lb: np.ndarray
+    x_ub: np.ndarray
+    u_lb: np.ndarray
+    u_ub: np.ndarray
 
     # These will be set in post_init
     Q: Optional[np.ndarray] = None
@@ -93,6 +76,21 @@ class TrajOptConfigs:
             config_dict["complementarity_relaxation"] = float(
                 config_dict["complementarity_relaxation"]
             )
+
+        # Convert list fields to numpy arrays
+        list_fields = [
+            "q_vec",
+            "qf_vec",
+            "r_vec",
+            "default_initial_state",
+            "x_lb",
+            "x_ub",
+            "u_lb",
+            "u_ub",
+        ]
+        for field in list_fields:
+            if field in config_dict:
+                config_dict[field] = np.array(config_dict[field])
 
         return cls(**config_dict)
 
@@ -125,7 +123,8 @@ class ContactImplicitTrajOpt:
         assert len(self._mu) == self._n_contacts
 
         # Follow Stewart-Trinkle contact modelling, we have 5 basis vectors:
-        # one for contact normal and four for frictional force.
+        # one for contact normal and four for frictional force (for one friction direction,
+        # we have one positive and one negative basis vector).
         self._n_friction_directions = 2
         self._n_force_basis_per_contact = 2 * self._n_friction_directions + 1
 
@@ -140,14 +139,14 @@ class ContactImplicitTrajOpt:
 
         self._epsilon = default_complementarity_relaxation
         self._default_timestep = default_timestep
-        self._target_states = None
+        self._target_state = None
 
-    def find_traj(
+    def solve(
         self,
         x_initial: np.ndarray,
         x_final: np.ndarray,
         warm_up_solution: Optional[np.ndarray] = None,
-        craft_initial_guess_fn: Optional[
+        create_initial_guess_for_states_fn: Optional[
             Callable[[np.ndarray, np.ndarray], np.ndarray]
         ] = None,
     ) -> np.ndarray:
@@ -158,11 +157,21 @@ class ContactImplicitTrajOpt:
             )
 
         if warm_up_solution is None:
-            if craft_initial_guess_fn is not None:
-                initial_guess = craft_initial_guess_fn(x_initial, x_final)
-                assert initial_guess.shape == (self.prog.num_vars(),)
-            else:
-                initial_guess = np.zeros(self.prog.num_vars())
+            # If no warm-up solution is provided, create an initial guess for the states only,
+            # the remaining variables will be set to 0.
+            if create_initial_guess_for_states_fn is not None:
+                initial_guess_for_states = create_initial_guess_for_states_fn(
+                    x_initial, x_final
+                )
+                assert initial_guess_for_states.shape == (
+                    self._planning_horizon + 1,
+                    self._nx,
+                )
+                for i in range(self._planning_horizon + 1):
+                    self.prog.SetInitialGuess(
+                        self._x_vars[i], initial_guess_for_states[i]
+                    )
+            initial_guess = np.nan_to_num(self.prog.initial_guess(), nan=0.0)
         else:
             initial_guess = warm_up_solution
 
@@ -170,19 +179,57 @@ class ContactImplicitTrajOpt:
         crisp_problem = pyCRISP.OptimizationProblem(self.prog.num_vars(), "ci-trajopt")
         crisp_problem.parse_drake_mathematical_program(self.prog)
 
-        # Set up the solver
+        # Set up the CRISP solver
         solver_params = pyCRISP.SolverParameters()
         solver = pyCRISP.SolverInterface(crisp_problem, solver_params)
+
+        # Set up the solver parameters
         solver.set_hyper_parameters("trailTol", np.array([1e-3]))
         solver.set_hyper_parameters("trustRegionTol", np.array([1e-3]))
         solver.set_hyper_parameters("WeightedMode", np.array([1]))
         solver.set_hyper_parameters("verbose", np.array([1]))
+
+        # Initialize the solver and solve the problem
         solver.initialize(initial_guess)
         solver.solve()
-        result = solver.getSolution()
+        result = solver.get_solution()
 
         print(f"Time taken to solve the problem: {time.perf_counter() - start_time}\n")
         return result
+
+    def extract_trajectory_from_result(self, ret: np.ndarray) -> Dict[str, np.ndarray]:
+        x_traj = []
+        u_traj = []
+        lambda_traj = []
+        target_state = self._target_state
+
+        # Note: this is a hack, extracting solution is often done through `MathematicalProgramResult`,
+        # but we're using CRISP solver which doesn't support `MathematicalProgramResult`.
+        # Instead, we use MathematicalProgram to set initial guesses with the solution from CRISP,
+        # and extract only important variables.
+        for i, var in enumerate(self.prog.decision_variables()):
+            self.prog.SetInitialGuess(var, ret[i])
+
+        for i in range(self._planning_horizon + 1):
+            x_i = self.prog.GetInitialGuess(self._x_vars[i])
+            x_traj.append(x_i)
+
+            if i < self._planning_horizon:
+                u_i = self.prog.GetInitialGuess(self._u_vars[i])
+                lambda_i = []
+                for j in range(self._n_contacts):
+                    lambda_i = np.hstack(
+                        [lambda_i, self.prog.GetInitialGuess(self._lambda_vars[i, j])]
+                    )
+                u_traj.append(u_i)
+                lambda_traj.append(lambda_i)
+        return {
+            "x_traj": np.array(x_traj),
+            "u_traj": np.array(u_traj),
+            "lambda_traj": np.array(lambda_traj),
+            "target_state": target_state,
+            "timestep": self._default_timestep,
+        }
 
     def _to_geom_id_and_body_pairs(
         self, contact_pairs: List[Dict[str, str]]
@@ -275,6 +322,9 @@ class ContactImplicitTrajOpt:
             )
 
     def _create_default_constraint_containers(self) -> None:
+        """
+        Initialize containers for all types of constraints used in the optimization problem.
+        """
         constraints_config = {
             "_x_constraints": (self._planning_horizon + 1,),
             "_u_constraints": (self._planning_horizon,),
@@ -942,7 +992,7 @@ class ContactImplicitTrajOpt:
         R: np.ndarray,
         target_state: np.ndarray,
     ) -> None:
-        self._target_states = target_state
+        self._target_state = target_state
         self._create_default_cost_containers()
         for i in range(self._planning_horizon):
             self._running_state_costs[i] = self.prog.AddQuadraticErrorCost(
@@ -969,13 +1019,13 @@ class ContactImplicitTrajOpt:
         self._add_max_dissipation_constraints()
 
 
-# utility functions for planning trajectories for simplified trifinger with cube
+# Note: three utility functions below are specific for simplified trifinger with cube
 def plan_single_traj(
     drake_system: DrakeSystem,
     trajopt_configs: TrajOptConfigs,
     x0: np.ndarray = None,
     target_state: np.ndarray = None,
-):
+) -> Dict[str, np.ndarray]:
     trajopt = ContactImplicitTrajOpt(
         plant=drake_system.plant,
         plant_context=drake_system.plant_context,
@@ -1000,38 +1050,44 @@ def plan_single_traj(
         target_state,
     )
 
-    # print out the constructed MathematicalProgram and redirect the output to a file.
+    # Print out the constructed MathematicalProgram and redirect the output to a file.
     if trajopt_configs.print_math_prog:
         with open("math_prog_printout.txt", "w") as f:
             with redirect_stdout(f):
                 print(trajopt.prog)
 
-    epsilons = [1e-4, 1e-6, 0.0]
+    # We employ multi-stage optimization to solve the problem:
+    #   - First solve the problem by relaxing complementarity constraints with a large epsilon,
+    #     then a smaller epsilon, and finally the problem with strict complementarity.
+    #   - The warm up solution of the previous stage is used as the initial guess for the next stage.
+    # epsilons = [1e-4, 1e-6, 0.0]
+    epsilons = [0]
     warm_up_solution = None
     ret = None
 
     for epsilon in epsilons:
         print(f"Solve trajopt with the following epsilon: {epsilon}\n")
         trajopt.update_complementarity_relaxation(epsilon)
-        ret = trajopt.find_traj(
+        ret = trajopt.solve(
             x0,
             target_state,
             warm_up_solution=warm_up_solution,
+            create_initial_guess_for_states_fn=partial(
+                make_initial_guess_for_trifinger_with_cube_trajectory,
+                planning_horizon=trajopt_configs.planning_horizon,
+                default_timestep=drake_system.plant.time_step(),
+            ),
         )
-        if ret.is_success():
-            warm_up_solution = ret
+        warm_up_solution = ret
 
-    if ret.is_success():
-        print("Planning trajectory is successful")
-    else:
-        print("Planning trajectory failed")
-    return None
+    return trajopt.extract_trajectory_from_result(ret)
 
 
 def plan_multiple_trajectories(
     drake_system: DrakeSystem,
     trajopt_configs: TrajOptConfigs,
     n_trajs: int,
+    enable_visualization: bool = False,
 ) -> None:
     for i in range(n_trajs):
         rand_target_angle = np.random.uniform(low=2.0, high=5.0)
@@ -1044,16 +1100,141 @@ def plan_multiple_trajectories(
         target_state[9:13] = angle_axis_to_quaternion(
             rand_target_angle, np.array([0, 0, 1])
         )
-        ret = plan_single_traj(
+        optimized_trajectory = plan_single_traj(
             drake_system=drake_system,
             trajopt_configs=trajopt_configs,
             x0=initial_state,
             target_state=target_state,
         )
-        if ret is not None:
-            print(f"Planning trajectory {i} is successful")
-        else:
-            print(f"Planning trajectory {i} failed")
+        if enable_visualization:
+            visualize_traj_with_meshcat(drake_system, optimized_trajectory)
+
+        input("Enter to generate next trajectory...")
+
+
+def make_initial_guess_for_trifinger_with_cube_trajectory(
+    x_initial: npt.NDArray[np.float64],
+    x_final: npt.NDArray[np.float64],
+    planning_horizon: int,
+    default_timestep: float,
+) -> npt.NDArray[np.float64]:
+    """Create a naive initial guess for state trajectory by interpolating between the initial and desired states.
+    All guesses for velocities are set to be zero.
+    """
+    q_cube_initial = Quaternion(x_initial[9:13] / np.linalg.norm(x_initial[9:13]))
+    q_cube_final = Quaternion(x_final[9:13] / np.linalg.norm(x_final[9:13]))
+    axis_angle_final = RotationMatrix(q_cube_final).ToAngleAxis()
+    rotation_direction = np.sign(axis_angle_final.axis()[-1] * axis_angle_final.angle())
+
+    # extract cube position from the state vector
+    p_cube_initial = x_initial[13:16]
+    p_cube_final = x_final[13:16]
+
+    # create time samples for the trajectory
+    time_samples = np.linspace(
+        0,
+        planning_horizon * default_timestep,
+        planning_horizon + 1,
+    )
+
+    # interpolate the cube orientation
+    slerp = PiecewiseQuaternionSlerp(
+        [time_samples[0], time_samples[-1]], [q_cube_initial, q_cube_final]
+    )
+    interpolated_cube_orientations = np.vstack(
+        [slerp.orientation(t).wxyz() for t in time_samples]
+    )
+
+    # interpolate the cube position linearly
+    interpolated_cube_positions = np.array(
+        [
+            np.linspace(p_cube_initial[i], p_cube_final[i], planning_horizon + 1)
+            for i in range(3)
+        ]
+    ).T
+
+    # calculate the relative finger positions with respect to the cube
+    # in this naive initial guess, we assume the relative finger positions are fixed
+    relative_finger0_pos = np.array([-0.01 * rotation_direction, 0.045, 0])
+    relative_finger1_pos = np.array([0.01 * rotation_direction, -0.045, 0])
+    relative_finger2_pos = np.array([0.045, 0.01 * rotation_direction, 0])
+
+    # calculate the finger positions in the world frame
+    interpolated_finger_positions = []
+    for cube_orientation, cube_position in zip(
+        interpolated_cube_orientations, interpolated_cube_positions
+    ):
+        R_WC = RotationMatrix(Quaternion(cube_orientation)).matrix()
+        p_WC = cube_position
+        p_WF0 = p_WC + R_WC @ relative_finger0_pos
+        p_WF1 = p_WC + R_WC @ relative_finger1_pos
+        p_WF2 = p_WC + R_WC @ relative_finger2_pos
+        interpolated_finger_positions.append(np.hstack([p_WF0, p_WF1, p_WF2]))
+    interpolated_finger_positions = np.array(interpolated_finger_positions)
+
+    # concatenate the finger positions and cube orientation and position
+    states = np.zeros((planning_horizon + 1, x_initial.shape[0]))
+    states[:, :9] = interpolated_finger_positions
+    states[:, 9:13] = interpolated_cube_orientations
+    states[:, 13:16] = interpolated_cube_positions
+
+    return states
+
+
+def visualize_traj_with_meshcat(
+    drake_system: DrakeSystem, traj: Dict[str, np.ndarray]
+) -> None:
+    def _draw_target(
+        target_quat: np.ndarray,
+        target_pos: np.ndarray,
+        str_path: str,
+        transparency: float,
+    ) -> None:
+        """Draw a phantom cube to show the desired configuration.
+
+        Args:
+            target_quat (np.array): the desired unit quaternion
+            target_pos (np.array): the desired position
+            str_path (str): meshcat string path (it can be understood as a unique ID)
+        """
+        assert target_quat.shape == (4,) and np.isclose(
+            np.linalg.norm(target_quat), 1.0
+        )  # check for valid unit quat
+        assert target_pos.shape == (3,)
+
+        if not drake_system.meshcat.HasPath(f"{str_path}"):
+            drake_system.meshcat.SetObject(
+                str_path, Box(0.065, 0.065, 0.065), Rgba(0.5, 0.5, 0.5, transparency)
+            )
+        drake_system.meshcat.SetTransform(
+            str_path,
+            RigidTransform(quaternion=Quaternion(target_quat), p=target_pos),
+        )
+        draw_frame_axes(drake_system.meshcat, f"{str_path}/frame")
+
+    _draw_target(
+        traj["target_state"][9:13],
+        traj["target_state"][13:16],
+        "target",
+        transparency=0.2,
+    )
+
+    visualizer_context = drake_system.visual_visualizer.GetMyContextFromRoot(
+        drake_system.plant_diagram_context
+    )
+    drake_system.visual_visualizer.StartRecording()
+
+    for i in range(traj["x_traj"].shape[0]):
+        drake_system.plant_diagram_context.SetTime(i * traj["timestep"])
+        drake_system.plant.SetPositionsAndVelocities(
+            drake_system.plant_context, traj["x_traj"][i]
+        )
+        drake_system.visual_visualizer.ForcedPublish(visualizer_context)
+
+    drake_system.visual_visualizer.StopRecording()
+    animation = drake_system.visual_visualizer.get_mutable_recording()
+
+    drake_system.meshcat.SetAnimation(animation)
 
 
 if __name__ == "__main__":
@@ -1064,4 +1245,11 @@ if __name__ == "__main__":
     drake_system = DrakeSystem.from_config(system_config_path)
     trajopt_configs = TrajOptConfigs.from_yaml(trajopt_config_path)
 
-    plan_multiple_trajectories(drake_system, trajopt_configs, 1)
+    n_trajs = 1
+    enable_visualization = True
+    plan_multiple_trajectories(
+        drake_system,
+        trajopt_configs,
+        n_trajs,
+        enable_visualization=enable_visualization,
+    )

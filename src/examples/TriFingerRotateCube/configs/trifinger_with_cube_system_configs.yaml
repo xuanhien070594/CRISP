@@ -8,7 +8,7 @@ urdfs:
   - "examples/TriFingerRotateCube/assets/cube/cube_v2.urdf"
 
 welded_links:
-  - body_of_child_link: "trifingeredu_simplified"
+  - body_of_child_link: "simplified_trifinger"
     child_link: "base_link"
     body_of_parent_link: "WorldModelInstance"
     parent_link: "world"
@@ -16,17 +16,17 @@ welded_links:
 additional_joints: []
 
 contact_geoms:
-  - body_1: "trifingeredu_simplified"
+  - body_1: "simplified_trifinger"
     link_1: "finger_tip_link_0"
     body_2: "cube"
     link_2: "cube"
     align_tangential_force_basis_to_linear_vel: false
-  - body_1: "trifingeredu_simplified"
+  - body_1: "simplified_trifinger"
     link_1: "finger_tip_link_120"
     body_2: "cube"
     link_2: "cube"
     align_tangential_force_basis_to_linear_vel: false
-  - body_1: "trifingeredu_simplified"
+  - body_1: "simplified_trifinger"
     link_1: "finger_tip_link_240"
     body_2: "cube"
     link_2: "cube"

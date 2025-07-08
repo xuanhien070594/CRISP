@@ -152,18 +152,6 @@ After successfully building the library, you can run the examples to verify the 
 ```
 Feel free to try different hyperparameters, and the weighted mode on these or your own problems. For local solver, the hyperparameters are important for the numerical performance.
 
-### Build CRISP with Bazel
-To integrate Drake into CRISP, we use the Bazel build system. Before building, make sure all dependencies from Step 1 are installed. Then run:
-
-```sh
-bazel build ...
-```
-This will download Drake and build the CRISP repository, which may take around 20 minutes. Once complete, you can run the `pushbox` example with:
-
-```sh
-bazel run src/examples:SolvePushboxWithDrake
-```
-
 ## 3. Usage
 ### 3.1 General Workflow
 This solve adopts the most general optimization problem format: 

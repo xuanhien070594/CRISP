@@ -3,9 +3,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import numpy.typing as npt
-from .misc_helper_functions import (
-    get_src_folder_absolute_path,
-)
 from pydrake.all import RevoluteJoint
 from pydrake.common.eigen_geometry import AngleAxis, Quaternion
 from pydrake.geometry import (
@@ -19,15 +16,18 @@ from pydrake.geometry import (
     SceneGraph,
     StartMeshcat,
 )
-from pydrake.math import RigidTransform
+from pydrake.math import RigidTransform, RotationMatrix
 from pydrake.multibody.parsing import Parser
 from pydrake.multibody.plant import (
     AddMultibodyPlantSceneGraph,
     CoulombFriction,
     DiscreteContactApproximation,
     MultibodyPlant,
+    MultibodyPlant_,
 )
 from pydrake.systems.framework import DiagramBuilder
+
+from .misc_helper_functions import get_src_folder_absolute_path
 
 
 # ---------------- Utility functions to create MultibodyPlant from urdf ---------------- #
@@ -409,3 +409,66 @@ def draw_frame_axes(
 
 
 # ------------------------------------------------------------------------------------#
+def angle_axis_to_quaternion(angle: float, axis: np.ndarray) -> np.ndarray:
+    """
+    Convert angle-axis representation to quaternion using Drake functions.
+
+    Args:
+        angle: Rotation angle in radians
+        axis: 3D unit vector representing rotation axis
+
+    Returns:
+        Quaternion as [w, x, y, z]
+    """
+    # For z-axis rotation, use Drake's MakeZRotation directly
+    if np.allclose(axis, [0, 0, 1]):
+        rotation_matrix = RotationMatrix.MakeZRotation(angle)
+    else:
+        # For other axes, use the general approach
+        rotation_matrix = RotationMatrix.MakeFromOneVector(axis, 2)
+        rotation_matrix = rotation_matrix.multiply(RotationMatrix.MakeZRotation(angle))
+    quaternion = Quaternion(rotation_matrix.matrix())
+    return np.array([quaternion.w(), quaternion.x(), quaternion.y(), quaternion.z()])
+
+
+def draw_frame_axes(
+    meshcat: Meshcat,
+    str_path: str,
+    frame_quat: Optional[np.ndarray] = None,
+    frame_pos: Optional[np.ndarray] = None,
+    transparency: float = 1.0,
+) -> None:
+    if not meshcat.HasPath(f"{str_path}/x_axis"):
+        meshcat.SetObject(
+            f"{str_path}/x_axis",
+            Cylinder(0.001, 0.05),
+            Rgba(1.0, 0.0, 0.0, transparency),
+        )
+        meshcat.SetObject(
+            f"{str_path}/y_axis",
+            Cylinder(0.001, 0.05),
+            Rgba(0.0, 1.0, 0.0, transparency),
+        )
+        meshcat.SetObject(
+            f"{str_path}/z_axis",
+            Cylinder(0.001, 0.05),
+            Rgba(0.0, 0.0, 1.0, transparency),
+        )
+        x_axis_transform = RigidTransform(
+            AngleAxis(np.pi / 2, np.array([0, 1, 0])), np.array([0.025, 0, 0])
+        )
+        y_axis_transform = RigidTransform(
+            AngleAxis(np.pi / 2, np.array([1, 0, 0])), np.array([0, 0.025, 0])
+        )
+        z_axis_transform = RigidTransform(
+            AngleAxis(np.pi / 2, np.array([0, 0, 1])), np.array([0, 0, 0.025])
+        )
+        meshcat.SetTransform(f"{str_path}/x_axis", x_axis_transform)
+        meshcat.SetTransform(f"{str_path}/y_axis", y_axis_transform)
+        meshcat.SetTransform(f"{str_path}/z_axis", z_axis_transform)
+
+    if frame_quat is not None and frame_pos is not None:
+        meshcat.SetTransform(
+            str_path,
+            RigidTransform(quaternion=Quaternion(frame_quat), p=frame_pos),
+        )

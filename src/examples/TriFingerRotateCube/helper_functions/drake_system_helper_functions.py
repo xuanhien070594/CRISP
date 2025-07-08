@@ -1,9 +1,10 @@
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+import numpy as np
 import yaml
 from pydrake.autodiffutils import AutoDiffXd
-from pydrake.geometry import MeshcatVisualizer, SceneGraph
+from pydrake.geometry import Meshcat, MeshcatVisualizer, SceneGraph
 from pydrake.multibody.plant import MultibodyPlant, MultibodyPlant_
 from pydrake.systems.framework import Context, Context_, DiagramBuilder, DiagramBuilder_
 
@@ -77,6 +78,7 @@ def setup_drake_system(
     Context,
     DiagramBuilder_[AutoDiffXd],
     Context_[AutoDiffXd],
+    Meshcat,
     SceneGraph,
     Optional[MeshcatVisualizer],
     Optional[MeshcatVisualizer],
@@ -176,6 +178,7 @@ def setup_drake_system(
         plant_diagram_context,
         plant_diagram_ad,
         plant_diagram_ad_context,
+        meshcat,
         scene_graph,
         visual_visualizer,
         collision_visualizer,
@@ -209,6 +212,7 @@ class DrakeSystem:
         plant_diagram_context: Context,
         plant_diagram_ad: DiagramBuilder_[AutoDiffXd],
         plant_diagram_ad_context: Context_[AutoDiffXd],
+        meshcat: Meshcat,
         scene_graph: SceneGraph,
         visual_visualizer: Optional[MeshcatVisualizer],
         collision_visualizer: Optional[MeshcatVisualizer],
@@ -226,6 +230,7 @@ class DrakeSystem:
             plant_diagram_context: Context for the diagram
             plant_diagram_ad: AutoDiffXd version of the diagram
             plant_diagram_ad_context: AutoDiffXd context for the diagram
+            meshcat: Meshcat instance for visualization
             scene_graph: Scene graph for visualization
             visual_visualizer: Visual geometry visualizer
             collision_visualizer: Collision geometry visualizer
@@ -240,6 +245,7 @@ class DrakeSystem:
         self.plant_diagram_context = plant_diagram_context
         self.plant_diagram_ad = plant_diagram_ad
         self.plant_diagram_ad_context = plant_diagram_ad_context
+        self.meshcat = meshcat
         self.scene_graph = scene_graph
         self.visual_visualizer = visual_visualizer
         self.collision_visualizer = collision_visualizer
