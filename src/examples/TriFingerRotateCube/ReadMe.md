@@ -6,7 +6,6 @@ To simplify the problem, we approximate the three fingertips as small spheres ra
 
 In the figure below, the three fingertips are represented by red, green, and blue spheres, with their corresponding position limits shown as regions in matching colors.
 
-<!-- ![trifinger_with_cube_task](media/trifinger_with_cube.png) -->
 <img src="media/trifinger_with_cube.png" width="423" height="400"/>
 
 ## System state
@@ -43,37 +42,18 @@ We predefine a set of potential contact pairs for trajectory optimization. In th
 
 We use the formulation from the paper `A Direct Method for Trajectory Optimization of Rigid Bodies Through Contact` by Michael Posa et al. 2013. The optimization problem can be written as
 
-$$
-\begin{equation}
-\underset{\left\{h, x_0, \ldots, x_N, u_1, \ldots, u_{\star}, \lambda_1, \ldots, \lambda_N\right\}}{\operatorname{minimize}} g_f\left(x_N\right)+h \sum_{k=1}^N g\left(x_{k-1}, u_k\right)
-\end{equation}
-$$
+<img src="media/opt_prob.png" width="726" height="100"/>
 
 This optimization problem is subject to constraints imposed by the manipulator dynamics and by rigid body contacts
 
 The dynamics constraints are given by
-$$
-\begin{aligned}
-q_k-q_{k+1}+h \dot{q}_{k+1} & =0 \\
-H_{k+1}\left(\dot{q}_{k+1}-\dot{q}_k\right)+h\left(C_{k+1}+G_{k+1}-B_{k+1} u_{k+1}-J_{k+1}^T \lambda_{k+1}\right) & =0
-\end{aligned}
-$$
+
+<img src="media/dynamics_constraints.png" width="860" height="80"/>
+
 
 For a given contact point, we can write a set of contact constraints that capture stick-slip transition, stick-separation transition, and maximum dissipation.
 
-$$
-\begin{aligned}
-\phi\left(q_k\right) & \geq 0 \\
-\lambda_{k, z}, \lambda_{k, x}^{i},\gamma_k & \geq 0 \\
-\lambda_{k, x}^i & \geq 0 \\
-\phi\left(q_k\right)^T \lambda_{k, z} &= 0 \\
-\mu \lambda_{k, z}-\sum_i^d \lambda_{k, x}^i & \geq 0 \\
-\gamma_k+\psi\left(q_k, \dot{q}_k\right)^T D^i & \geq 0 \\
-\left(\mu \lambda_{k, z}-\sum_i^d \lambda_{k, x}^i\right)^T \gamma_k & =0 \\
-\left(\gamma_k+\psi\left(q_k, \dot{q}_k\right)^T D^i\right)^T \lambda_{k, x}^i & =0
-\end{aligned}
-$$
-
+<img src="media/contact_constraints.png" width="393" height="500"/>
 
 # Implementation
 
