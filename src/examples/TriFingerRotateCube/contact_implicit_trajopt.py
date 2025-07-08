@@ -1060,8 +1060,7 @@ def plan_single_traj(
     #   - First solve the problem by relaxing complementarity constraints with a large epsilon,
     #     then a smaller epsilon, and finally the problem with strict complementarity.
     #   - The warm up solution of the previous stage is used as the initial guess for the next stage.
-    # epsilons = [1e-4, 1e-6, 0.0]
-    epsilons = [0]
+    epsilons = [1e-4, 1e-6, 0.0]
     warm_up_solution = None
     ret = None
 
@@ -1107,7 +1106,9 @@ def plan_multiple_trajectories(
             target_state=target_state,
         )
         if enable_visualization:
-            visualize_traj_with_meshcat(drake_system, optimized_trajectory)
+            visualize_traj_with_meshcat(
+                drake_system, optimized_trajectory, trajopt_configs
+            )
 
         input("Enter to generate next trajectory...")
 
@@ -1182,7 +1183,9 @@ def make_initial_guess_for_trifinger_with_cube_trajectory(
 
 
 def visualize_traj_with_meshcat(
-    drake_system: DrakeSystem, traj: Dict[str, np.ndarray]
+    drake_system: DrakeSystem,
+    traj: Dict[str, np.ndarray],
+    trajopt_configs: TrajOptConfigs,
 ) -> None:
     def _draw_target(
         target_quat: np.ndarray,
@@ -1212,12 +1215,55 @@ def visualize_traj_with_meshcat(
         )
         draw_frame_axes(drake_system.meshcat, f"{str_path}/frame")
 
+    def _draw_position_limits(str_path: str) -> None:
+        if not drake_system.meshcat.HasPath(f"{str_path}/finger_tip_0"):
+            drake_system.meshcat.SetObject(
+                f"{str_path}/finger_tip_0",
+                Box(
+                    trajopt_configs.x_ub[0] - trajopt_configs.x_lb[0],
+                    trajopt_configs.x_ub[1] - trajopt_configs.x_lb[1],
+                    trajopt_configs.x_ub[2] - trajopt_configs.x_lb[2],
+                ),
+                Rgba(1.0, 0.0, 0.0, 0.05),
+            )
+            drake_system.meshcat.SetObject(
+                f"{str_path}/finger_tip_120",
+                Box(
+                    trajopt_configs.x_ub[3] - trajopt_configs.x_lb[3],
+                    trajopt_configs.x_ub[4] - trajopt_configs.x_lb[4],
+                    trajopt_configs.x_ub[5] - trajopt_configs.x_lb[5],
+                ),
+                Rgba(0.0, 1.0, 0.0, 0.05),
+            )
+            drake_system.meshcat.SetObject(
+                f"{str_path}/finger_tip_240",
+                Box(
+                    trajopt_configs.x_ub[6] - trajopt_configs.x_lb[6],
+                    trajopt_configs.x_ub[7] - trajopt_configs.x_lb[7],
+                    trajopt_configs.x_ub[8] - trajopt_configs.x_lb[8],
+                ),
+                Rgba(0.0, 0.0, 1.0, 0.05),
+            )
+        drake_system.meshcat.SetTransform(
+            f"{str_path}/finger_tip_0",
+            RigidTransform(p=trajopt_configs.default_initial_state[:3]),
+        )
+        drake_system.meshcat.SetTransform(
+            f"{str_path}/finger_tip_120",
+            RigidTransform(p=trajopt_configs.default_initial_state[3:6]),
+        )
+        drake_system.meshcat.SetTransform(
+            f"{str_path}/finger_tip_240",
+            RigidTransform(p=trajopt_configs.default_initial_state[6:9]),
+        )
+
     _draw_target(
         traj["target_state"][9:13],
         traj["target_state"][13:16],
         "target",
         transparency=0.2,
     )
+    _draw_position_limits("fingertip_pos_limits")
 
     visualizer_context = drake_system.visual_visualizer.GetMyContextFromRoot(
         drake_system.plant_diagram_context
