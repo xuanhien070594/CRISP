@@ -142,3 +142,8 @@ Simply execute
 ```sh
 bazel run src/examples:contact_implicit_trajopt
 ```
+
+### Trajectory Visualization
+
+Once a trajectory is generated, it can be visualized by navigating to [http://localhost:7000](http://localhost:7000) in your browser.
+Sometimes, port 7000 may remain occupied even after the process has terminated. In such cases, try using an alternative port number, such as 7001 or 7002.
